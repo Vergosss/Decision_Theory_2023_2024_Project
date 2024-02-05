@@ -7,6 +7,10 @@ from sklearn.model_selection import cross_val_score#gia to cross validation
 import numpy as np#mathimatika gia tis metrikes
 from sklearn.svm import SVC
 from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import make_scorer
+from imblearn.metrics import geometric_mean_score
+from sklearn.model_selection import GridSearchCV
+
 #reading the xlsx file with pandas
 df = pd.read_excel('BreastTissue.xlsx',sheet_name='Data')
 
@@ -33,47 +37,66 @@ print('\n-------------------------------------After encoding categorical attribu
 #splitting the dataset
 X = df[numericals]
 y = df['Class']
-
+print(df.describe())
 ####---K-Nearest Neighbors------###
-scores =[]
 margin = range(3,16)
+scores =[]
+gm_scorer = make_scorer(geometric_mean_score, greater_is_better=True)
 for k in margin:
 	knn = KNeighborsClassifier(n_neighbors=k)
-	score = cross_val_score(knn,X,y,cv=5,scoring='accuracy')#to score einai ena dianysma diastasis 5 diladi 5 times.
+	score = cross_val_score(knn,X,y,cv=5,scoring=gm_scorer)#to score einai ena dianysma diastasis 5 diladi 5 times.
 	scores.append(np.mean(score))#o mesos aytou tou dianysmatos(athrisma stixion/5) = apodosi. #vazo to skor tou ekastote k sth lista
 
 plt.plot(margin,scores,'x')#kai tin kano visualize
 plt.xlabel('values of k')
 plt.ylabel('Accuracy score')
 plt.show()
-print('5-Fold cross validation knn optimal k accuracy:',max(scores))
+print('5-Fold cross validation knn optimal k gmean:',100*max(scores))
+
+classifier = KNeighborsClassifier()
+parameters  = [{'n_neighbors':margin}]
+grid_search = GridSearchCV(estimator = classifier,param_grid = parameters,scoring = gm_scorer, cv = 5)
+grid_search = grid_search.fit(X, y)
+best_gmean = grid_search.best_score_
+best_parameters = grid_search.best_params_
+print('Best KNN gmean:',100*best_gmean,' best parameters(k) : ',best_parameters)
+
 ######---- NAIVE BAYES-----#####
+classifier = GaussianNB()
+parameters  = [{}]
+grid_search = GridSearchCV(estimator = classifier,param_grid = parameters,scoring = gm_scorer, cv = 5)
+grid_search = grid_search.fit(X, y)
+best_gmean = grid_search.best_score_
+best_parameters = grid_search.best_params_
+print('Best naive bayes gmean:',100*best_gmean,' best parameters() : ',best_parameters)
 
-naive_bayes = GaussianNB()
-print('5-Fold cross validation naive bayes optimal k accuracy: ',np.mean(cross_val_score(naive_bayes,X,y,cv=5,scoring='accuracy')))#ypotheto to accuracy einai to default metric
-scores = []
+print('5-Fold cross validation naive bayes optimal gmean: ',100*np.mean(cross_val_score(classifier,X,y,cv=5,scoring=gm_scorer)))#ypotheto to accuracy einai to default metric
+
 ######---SVM classifier----###
-for c in range(1,201,5):
-	svc = SVC(kernel='rbf',C=c)
-	score = cross_val_score(svc,X,y,cv=5,scoring='accuracy')
-	scores.append(np.mean(score))
 
-plt.plot(range(1,201,5),scores,'x')
-plt.xlabel('values of C')
-plt.ylabel('accuracy score')
-plt.show()
-##
-print('5-fold cross validation svm optimal C accuracy ',max(scores))
-c=26
-scores = []
-for g in np.arange(0.0,11.0,0.5):
-	svc = SVC(kernel='rbf',C=c,gamma=g)
-	score = cross_val_score(svc,X,y,cv=5,scoring='accuracy')
-	scores.append(np.mean(score))
+#######
 
-plt.plot(np.arange(0.0,11.0,0.5),scores,'x')
-plt.xlabel('values of gamma')
-plt.ylabel('accuracy score')
-plt.show()
+########
+
+
 ##
-print('5-fold cross validation svm optimal gamma accuracy ',max(scores))
+
+classifier = SVC(kernel = 'linear')
+parameters  = [{'C': range(1,201,5)}]
+grid_search = GridSearchCV(estimator = classifier,param_grid = parameters,scoring = gm_scorer, cv = 5)
+grid_search = grid_search.fit(X, y)
+best_gmean = grid_search.best_score_
+best_parameters = grid_search.best_params_
+print('Best linear SVM gmean:',100*best_gmean,' best parameters : ',best_parameters)
+
+
+#########
+
+#after finding the optimal C from the previous senario:
+classifier = SVC(kernel = 'rbf',C=best_parameters['C'])
+parameters  = [{'gamma':np.arange(0.0,11.0,0.5)}]
+grid_search = GridSearchCV(estimator = classifier,param_grid = parameters,scoring = gm_scorer, cv = 5)
+grid_search = grid_search.fit(X, y)
+best_gmean = grid_search.best_score_
+best_parameters = grid_search.best_params_
+print('Best rbf SVM gmean:',100*best_gmean,' best parameters : ',best_parameters)
